@@ -38,3 +38,28 @@ func TestNewGedisson1(t *testing.T) {
 	t.Log(lock2)
 
 }
+
+func TestSub(t *testing.T) {
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     "localhost:6379",
+		Password: "", // no password set
+		DB:       0,  // use default DB
+	})
+	sub := rdb.Subscribe(context.Background(), "123-channel")
+	channel := sub.Channel()
+
+	for message := range channel {
+		t.Log(message)
+	}
+}
+
+func TestPub(t *testing.T) {
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     "localhost:6379",
+		Password: "", // no password set
+		DB:       0,  // use default DB
+	})
+
+	rdb.Publish(context.Background(), "123-channel", "123")
+
+}
