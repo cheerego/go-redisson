@@ -1,16 +1,18 @@
-## godission
+## godisson
 
 a Redisson like distributed locking implementation using Redis.
 
 ## Installation
 
-`go get github.com/cheerego/godission`
+```shell
+go get github.com/cheerego/godisson
+```
 
 ## Features
 
 * ReentrantLock (one goroutine can obtain lock many times)
 * watchdog
-* obtain lock support retry and redis pub sub 
+* obtain lock support retry and redis pub sub (Redis Pubsub speed up obtaining lock)
 
 ## Options
 
