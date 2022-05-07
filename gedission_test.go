@@ -3,6 +3,8 @@ package godisson
 import (
 	"context"
 	"github.com/go-redis/redis/v8"
+	"github.com/pkg/errors"
+	"net"
 	"testing"
 	"time"
 )
@@ -15,8 +17,10 @@ func TestNewGedisson(t *testing.T) {
 	})
 
 	gedisson := NewGodisson(rdb)
-	t.Log(gedisson.NewRLock("hkn").TryLock(context.Background(), -1, 30*time.Second))
-	t.Log(gedisson.NewRLock("hkn").TryLock(context.Background(), -1, 30*time.Second))
+	lock := gedisson.NewRLock("hkn")
+	t.Log(lock.TryLock(context.Background(), -1*time.Second, 40*time.Second))
+	time.Sleep(10 * time.Second)
+	lock.UnLock()
 
 	//time.Sleep(100 * time.Second)
 }
@@ -30,12 +34,26 @@ func TestNewGedisson1(t *testing.T) {
 
 	gedisson := NewGodisson(rdb)
 	lock1 := gedisson.NewRLock("hkn")
-	lock2 := gedisson.NewRLock("hkn")
 
-	t.Log(lock1.TryLock(context.Background(), -1, 30*time.Second))
-	t.Log(lock1)
-	t.Log(lock2.TryLock(context.Background(), -1, 30*time.Second))
-	t.Log(lock2)
+	t.Log(lock1.TryLock(context.Background(), 20*time.Second, 40*time.Second))
+	time.Sleep(10 * time.Second)
+	lock1.UnLock()
+
+}
+
+func TestNewGedisson2(t *testing.T) {
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     "localhost:6379",
+		Password: "", // no password set
+		DB:       0,  // use default DB
+	})
+
+	gedisson := NewGodisson(rdb)
+	lock1 := gedisson.NewRLock("hkn")
+
+	t.Log(lock1.TryLock(context.Background(), 20*time.Second, 40*time.Second))
+	time.Sleep(10 * time.Second)
+	lock1.UnLock()
 
 }
 
@@ -46,11 +64,12 @@ func TestSub(t *testing.T) {
 		DB:       0,  // use default DB
 	})
 	sub := rdb.Subscribe(context.Background(), "123-channel")
-	channel := sub.Channel()
+	ctx, cancelFunc := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancelFunc()
 
-	for message := range channel {
-		t.Log(message)
-	}
+	message, err := sub.ReceiveMessage(ctx)
+	var target *net.OpError
+	t.Log(message, err, errors.As(err, &target))
 }
 
 func TestPub(t *testing.T) {

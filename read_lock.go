@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"github.com/go-redis/redis/v8"
 	"github.com/pkg/errors"
+	"net"
 	"time"
 )
 
-var ErrNotObtain = errors.New("ErrNotObtain")
+var ErrLockNotObtain = errors.New("ErrLockNotObtain")
 
 const UNLOCK_MESSAGE int64 = 0
 
@@ -33,7 +34,7 @@ func (r *RLock) Lock(ctx context.Context) error {
 }
 
 func (r *RLock) TryLock(ctx context.Context, waitTime time.Duration, leaseTime time.Duration) error {
-	time := waitTime.Milliseconds()
+	wait := waitTime.Milliseconds()
 	current := CurrentTimeMillis()
 	ttl, err := r.tryAcquire(ctx, waitTime, leaseTime)
 	if err != nil {
@@ -42,18 +43,68 @@ func (r *RLock) TryLock(ctx context.Context, waitTime time.Duration, leaseTime t
 	if ttl == 0 {
 		return nil
 	}
-	time -= CurrentTimeMillis() - current
-	if time <= 0 {
-		return ErrNotObtain
+	wait -= CurrentTimeMillis() - current
+	if wait <= 0 {
+		return ErrLockNotObtain
 	}
 	current = CurrentTimeMillis()
 	// PubSub
-
-	time -= -current
-	if time <= 0 {
-		return ErrNotObtain
+	sub := r.c.Subscribe(ctx, r.getChannelName())
+	defer sub.Close()
+	timeoutCtx, timeoutCancel := context.WithTimeout(ctx, time.Duration(wait)*time.Millisecond)
+	defer timeoutCancel()
+	_, err = sub.ReceiveMessage(timeoutCtx)
+	if err != nil {
+		return ErrLockNotObtain
+	} else {
+		fmt.Println("收到消息拉1")
 	}
-	return nil
+
+	wait -= CurrentTimeMillis() - current
+	if wait <= 0 {
+		return ErrLockNotObtain
+	}
+
+	for {
+		currentTime := CurrentTimeMillis()
+		ttl, err = r.tryAcquire(ctx, waitTime, leaseTime)
+		if ttl == 0 {
+			return nil
+		}
+		wait -= CurrentTimeMillis() - currentTime
+		if wait <= 0 {
+			return ErrLockNotObtain
+		}
+		currentTime = CurrentTimeMillis()
+
+		var target *net.OpError
+		if ttl >= 0 && ttl < wait {
+			tCtx, _ := context.WithTimeout(ctx, time.Duration(ttl)*time.Millisecond)
+			_, err := sub.ReceiveMessage(tCtx)
+			if err != nil {
+				if errors.As(err, &target) {
+					continue
+				}
+			} else {
+				fmt.Println("收到消息拉1")
+			}
+		} else {
+			tCtx, _ := context.WithTimeout(ctx, time.Duration(wait)*time.Millisecond)
+			_, err := sub.ReceiveMessage(tCtx)
+
+			if err != nil {
+				if errors.As(err, &target) {
+					continue
+				}
+			} else {
+				fmt.Println("收到消息拉2")
+			}
+		}
+		wait -= CurrentTimeMillis() - currentTime
+		if wait <= 0 {
+			return ErrLockNotObtain
+		}
+	}
 }
 
 func (r *RLock) tryAcquire(ctx context.Context, waitTime time.Duration, leaseTime time.Duration) (int64, error) {
