@@ -125,6 +125,7 @@ func (r *RLock) tryAcquire(waitTime int64, leaseTime int64) (int64, error) {
 		r.watchDogCancel = cancelFunc
 		go func() {
 			ticker := time.NewTicker(r.g.watchDogTimeout / 3)
+			defer ticker.Stop()
 			for {
 				select {
 				case <-ticker.C:
@@ -133,6 +134,7 @@ func (r *RLock) tryAcquire(waitTime int64, leaseTime int64) (int64, error) {
 					if err != nil {
 						return
 					}
+					// key not exists, so return goroutine
 					if renew == 0 {
 						return
 					}
@@ -176,7 +178,7 @@ return redis.call('pttl', KEYS[1]);
 
 }
 
-func (r *RLock) UnLock() (bool, error) {
+func (r *RLock) UnLock() (int64, error) {
 	defer func() {
 		if r.watchDogCancel != nil {
 			r.watchDogCancel()
@@ -196,15 +198,14 @@ else
     return 1;
 end;
 return nil;
-`, []string{
-		r.Key, r.getChannelName()}, UNLOCK_MESSAGE, DefaultWatchDogTimeout, r.lockName).Result()
+`, []string{r.Key, r.getChannelName()}, UNLOCK_MESSAGE, DefaultWatchDogTimeout, r.lockName).Result()
 	if err != nil {
-		return false, err
+		return 0, err
 	}
-	if b, ok := result.(bool); ok {
+	if b, ok := result.(int64); ok {
 		return b, nil
 	} else {
-		return false, errors.Errorf("try lock result converter to bool error, value is %v", result)
+		return 0, errors.Errorf("try lock result converter to bool error, value is %v", result)
 	}
 }
 

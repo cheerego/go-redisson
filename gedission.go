@@ -2,7 +2,7 @@ package godisson
 
 import (
 	"github.com/go-redis/redis/v8"
-	"github.com/google/uuid"
+	uuid "github.com/satori/go.uuid"
 	"log"
 	"time"
 )
@@ -18,8 +18,11 @@ var DefaultWatchDogTimeout = 30 * time.Second
 func NewGodisson(redisClient *redis.Client, opts ...OptionFunc) *Godisson {
 	g := &Godisson{
 		c:               redisClient,
-		uuid:            uuid.New().String(),
+		uuid:            uuid.NewV4().String(),
 		watchDogTimeout: DefaultWatchDogTimeout,
+	}
+	for _, opt := range opts {
+		opt(g)
 	}
 	return g
 }
