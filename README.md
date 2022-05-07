@@ -1,6 +1,6 @@
 ## godission
 
-one Redisson like distributed locking implementation using Redis.
+a Redisson like distributed locking implementation using Redis.
 
 ## Installation
 
