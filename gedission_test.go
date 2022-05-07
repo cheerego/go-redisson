@@ -18,7 +18,7 @@ func TestNewGedisson(t *testing.T) {
 
 	gedisson := NewGodisson(rdb)
 	lock := gedisson.NewRLock("hkn")
-	t.Log(lock.TryLock(context.Background(), -1*time.Second, 40*time.Second))
+	t.Log(lock.TryLock(-1, 40000))
 	time.Sleep(10 * time.Second)
 	lock.UnLock()
 
@@ -35,7 +35,7 @@ func TestNewGedisson1(t *testing.T) {
 	gedisson := NewGodisson(rdb)
 	lock1 := gedisson.NewRLock("hkn")
 
-	t.Log(lock1.TryLock(context.Background(), 20*time.Second, 40*time.Second))
+	t.Log(lock1.TryLock(20000, 40000))
 	time.Sleep(10 * time.Second)
 	lock1.UnLock()
 
@@ -51,8 +51,22 @@ func TestNewGedisson2(t *testing.T) {
 	gedisson := NewGodisson(rdb)
 	lock1 := gedisson.NewRLock("hkn")
 
-	t.Log(lock1.TryLock(context.Background(), 20*time.Second, 40*time.Second))
+	t.Log(lock1.TryLock(20000, 40000))
 	time.Sleep(10 * time.Second)
+	lock1.UnLock()
+
+}
+func TestNewGedissonWatchdog(t *testing.T) {
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     "localhost:6379",
+		Password: "", // no password set
+		DB:       0,  // use default DB
+	})
+
+	gedisson := NewGodisson(rdb)
+	lock1 := gedisson.NewRLock("hkn")
+	t.Log(lock1.TryLock(40000, -1))
+	time.Sleep(1 * time.Minute)
 	lock1.UnLock()
 
 }

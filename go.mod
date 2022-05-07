@@ -1,4 +1,4 @@
-module godisson
+module github.com/cheerego/godisson
 
 go 1.16
 
