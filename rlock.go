@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/pkg/errors"
-	"log"
 	"net"
 	"time"
 )
@@ -60,8 +59,6 @@ func (r *RLock) TryLock(waitTime int64, leaseTime int64) error {
 	_, err = sub.ReceiveMessage(timeoutCtx)
 	if err != nil {
 		return ErrLockNotObtained
-	} else {
-		fmt.Println("收到消息拉1")
 	}
 
 	wait -= CurrentTimeMillis() - current
@@ -89,8 +86,6 @@ func (r *RLock) TryLock(waitTime int64, leaseTime int64) error {
 				if errors.As(err, &target) {
 					continue
 				}
-			} else {
-				fmt.Println("收到消息拉1")
 			}
 		} else {
 			tCtx, _ := context.WithTimeout(context.TODO(), time.Duration(wait)*time.Millisecond)
@@ -100,8 +95,6 @@ func (r *RLock) TryLock(waitTime int64, leaseTime int64) error {
 				if errors.As(err, &target) {
 					continue
 				}
-			} else {
-				fmt.Println("收到消息拉2")
 			}
 		}
 		wait -= CurrentTimeMillis() - currentTime
@@ -130,7 +123,6 @@ func (r *RLock) tryAcquire(waitTime int64, leaseTime int64) (int64, error) {
 				select {
 				case <-ticker.C:
 					renew, err := r.renew(context.TODO())
-					log.Println("renew", renew)
 					if err != nil {
 						return
 					}

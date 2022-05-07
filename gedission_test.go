@@ -18,7 +18,7 @@ func TestNewGedisson(t *testing.T) {
 
 	gedisson := NewGodisson(rdb)
 	lock := gedisson.NewRLock("hkn")
-	t.Log(lock.TryLock(-1, 40000))
+	t.Log(lock.TryLock(20000, 40000))
 	time.Sleep(10 * time.Second)
 	lock.UnLock()
 
