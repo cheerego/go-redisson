@@ -27,7 +27,7 @@ func (r *RenewEntry) addGoroutineId(goroutineId uint64) {
 	r.goroutineIds[goroutineId] = count
 }
 
-func (r *RenewEntry) removeGoroutineId(goroutineId int64) {
+func (r *RenewEntry) removeGoroutineId(goroutineId uint64) {
 	r.Lock()
 	defer r.Unlock()
 

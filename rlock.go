@@ -147,7 +147,7 @@ func (r *RLock) renewScheduler(goroutineId uint64) {
 	}
 }
 
-func (r *RLock) cancelExpirationRenewal() {
+func (r *RLock) cancelExpirationRenewal(goid uint64) {
 	entryName := r.g.getEntryName(r.Key)
 	if entry, ok := r.g.RenewMap.Get(entryName); ok {
 		r.g.RenewMap.Remove(entryName)
@@ -189,14 +189,14 @@ return redis.call('pttl', KEYS[1]);
 }
 
 func (r *RLock) UnLock() (int64, error) {
-	defer func() {
-		r.cancelExpirationRenewal()
-	}()
-
 	goid, err := gid()
 	if err != nil {
 		return 0, err
 	}
+
+	defer func() {
+		r.cancelExpirationRenewal(goid)
+	}()
 
 	result, err := r.g.c.Eval(context.Background(), `
 if (redis.call('hexists', KEYS[1], ARGV[3]) == 0) then
