@@ -1,7 +1,9 @@
 package godisson
 
 import (
+	"fmt"
 	"github.com/go-redis/redis/v8"
+	cmap "github.com/orcaman/concurrent-map"
 	uuid "github.com/satori/go.uuid"
 	"log"
 	"time"
@@ -11,6 +13,8 @@ type Godisson struct {
 	c               *redis.Client
 	watchDogTimeout time.Duration
 	uuid            string
+	// key uuid:key, value entry
+	RenewMap cmap.ConcurrentMap
 }
 
 var DefaultWatchDogTimeout = 30 * time.Second
@@ -20,6 +24,7 @@ func NewGodisson(redisClient *redis.Client, opts ...OptionFunc) *Godisson {
 		c:               redisClient,
 		uuid:            uuid.NewV4().String(),
 		watchDogTimeout: DefaultWatchDogTimeout,
+		RenewMap:        cmap.New(),
 	}
 	for _, opt := range opts {
 		opt(g)
@@ -41,4 +46,12 @@ func WithWatchDogTimeout(t time.Duration) OptionFunc {
 
 func (g *Godisson) NewRLock(key string) *RLock {
 	return newRLock(key, g)
+}
+
+func (g *Godisson) getEntryName(key string) string {
+	return fmt.Sprintf("%s:%s", g.uuid, key)
+}
+
+func (g *Godisson) getLockName(goroutineId uint64) string {
+	return fmt.Sprintf("%s:%d", g.uuid, goroutineId)
 }

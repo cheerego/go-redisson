@@ -15,11 +15,8 @@ const UNLOCK_MESSAGE int64 = 0
 const READ_UNLOCK_MESSAGE int64 = 1
 
 type RLock struct {
-	Key      string
-	g        *Godisson
-	lockName string
-
-	watchDogCancel context.CancelFunc
+	Key string
+	g   *Godisson
 }
 
 func newRLock(key string, g *Godisson) *RLock {
@@ -38,7 +35,7 @@ func (r *RLock) Lock() error {
 // leaseTime, Millisecond, -1 enable watchdog
 func (r *RLock) TryLock(waitTime int64, leaseTime int64) error {
 	wait := waitTime
-	current := CurrentTimeMillis()
+	current := currentTimeMillis()
 	ttl, err := r.tryAcquire(waitTime, leaseTime)
 	if err != nil {
 		return err
@@ -46,11 +43,11 @@ func (r *RLock) TryLock(waitTime int64, leaseTime int64) error {
 	if ttl == 0 {
 		return nil
 	}
-	wait -= CurrentTimeMillis() - current
+	wait -= currentTimeMillis() - current
 	if wait <= 0 {
 		return ErrLockNotObtained
 	}
-	current = CurrentTimeMillis()
+	current = currentTimeMillis()
 	// PubSub
 	sub := r.g.c.Subscribe(context.TODO(), r.getChannelName())
 	defer sub.Close()
@@ -61,22 +58,22 @@ func (r *RLock) TryLock(waitTime int64, leaseTime int64) error {
 		return ErrLockNotObtained
 	}
 
-	wait -= CurrentTimeMillis() - current
+	wait -= currentTimeMillis() - current
 	if wait <= 0 {
 		return ErrLockNotObtained
 	}
 
 	for {
-		currentTime := CurrentTimeMillis()
+		currentTime := currentTimeMillis()
 		ttl, err = r.tryAcquire(waitTime, leaseTime)
 		if ttl == 0 {
 			return nil
 		}
-		wait -= CurrentTimeMillis() - currentTime
+		wait -= currentTimeMillis() - currentTime
 		if wait <= 0 {
 			return ErrLockNotObtained
 		}
-		currentTime = CurrentTimeMillis()
+		currentTime = currentTimeMillis()
 
 		var target *net.OpError
 		if ttl >= 0 && ttl < wait {
@@ -97,7 +94,7 @@ func (r *RLock) TryLock(waitTime int64, leaseTime int64) error {
 				}
 			}
 		}
-		wait -= CurrentTimeMillis() - currentTime
+		wait -= currentTimeMillis() - currentTime
 		if wait <= 0 {
 			return ErrLockNotObtained
 		}
@@ -105,6 +102,10 @@ func (r *RLock) TryLock(waitTime int64, leaseTime int64) error {
 }
 
 func (r *RLock) tryAcquire(waitTime int64, leaseTime int64) (int64, error) {
+	goid, err := gid()
+	if err != nil {
+		return 0, err
+	}
 	if leaseTime != -1 {
 		return r.tryAcquireInner(waitTime, leaseTime)
 	}
@@ -114,37 +115,54 @@ func (r *RLock) tryAcquire(waitTime int64, leaseTime int64) (int64, error) {
 		return 0, nil
 	}
 	if ttl == 0 {
-		cancelCtx, cancelFunc := context.WithCancel(context.TODO())
-		r.watchDogCancel = cancelFunc
-		go func() {
-			ticker := time.NewTicker(r.g.watchDogTimeout / 3)
-			defer ticker.Stop()
-			for {
-				select {
-				case <-ticker.C:
-					renew, err := r.renew(context.TODO())
-					if err != nil {
-						return
-					}
-					// key not exists, so return goroutine
-					if renew == 0 {
-						return
-					}
-				case <-cancelCtx.Done():
-					return
-				}
-			}
-		}()
+		go r.renewScheduler(goid)
 	}
 	return ttl, err
 }
 
+func (r *RLock) renewScheduler(goroutineId uint64) {
+	newEntry := NewRenewEntry()
+	entryName := r.g.getEntryName(r.Key)
+	if oldEntry, ok := r.g.RenewMap.Get(entryName); ok {
+		oldEntry.(*RenewEntry).addGoroutineId(goroutineId)
+	} else {
+		newEntry.addGoroutineId(goroutineId)
+		r.g.RenewMap.Set(entryName, newEntry)
+	}
+
+	ticker := time.NewTicker(r.g.watchDogTimeout / 3)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			renew, err := r.renew(goroutineId)
+			if err != nil {
+				return
+			}
+			// key not exists, so return goroutine
+			if renew == 0 {
+				return
+			}
+		}
+	}
+}
+
+func (r *RLock) cancelExpirationRenewal() {
+	entryName := r.g.getEntryName(r.Key)
+	if entry, ok := r.g.RenewMap.Get(entryName); ok {
+		r.g.RenewMap.Remove(entryName)
+	}
+}
+
 func (r *RLock) tryAcquireInner(waitTime int64, leaseTime int64) (int64, error) {
-	lockName, err := GetLockName(r.g.uuid)
+	gid, err := gid()
 	if err != nil {
 		return 0, err
 	}
-	r.lockName = lockName
+	lockName := r.g.getLockName(gid)
+	if err != nil {
+		return 0, err
+	}
 	result, err := r.g.c.Eval(context.TODO(), `
 if (redis.call('exists', KEYS[1]) == 0) then
     redis.call('hincrby', KEYS[1], ARGV[2], 1);
@@ -172,10 +190,14 @@ return redis.call('pttl', KEYS[1]);
 
 func (r *RLock) UnLock() (int64, error) {
 	defer func() {
-		if r.watchDogCancel != nil {
-			r.watchDogCancel()
-		}
+		r.cancelExpirationRenewal()
 	}()
+
+	goid, err := gid()
+	if err != nil {
+		return 0, err
+	}
+
 	result, err := r.g.c.Eval(context.Background(), `
 if (redis.call('hexists', KEYS[1], ARGV[3]) == 0) then
     return nil;
@@ -190,7 +212,7 @@ else
     return 1;
 end;
 return nil;
-`, []string{r.Key, r.getChannelName()}, UNLOCK_MESSAGE, DefaultWatchDogTimeout, r.lockName).Result()
+`, []string{r.Key, r.getChannelName()}, UNLOCK_MESSAGE, DefaultWatchDogTimeout, r.g.getLockName(goid)).Result()
 	if err != nil {
 		return 0, err
 	}
@@ -205,14 +227,14 @@ func (r *RLock) getChannelName() string {
 	return fmt.Sprintf("{gedisson_lock__channel}:%s)", r.Key)
 }
 
-func (r *RLock) renew(ctx context.Context) (int64, error) {
-	result, err := r.g.c.Eval(ctx, `
+func (r *RLock) renew(gid uint64) (int64, error) {
+	result, err := r.g.c.Eval(context.TODO(), `
 if (redis.call('hexists', KEYS[1], ARGV[2]) == 1) then
     redis.call('pexpire', KEYS[1], ARGV[1]);
     return 1;
 end ;
 return 0
-`, []string{r.Key}, r.g.watchDogTimeout.Milliseconds(), r.lockName).Result()
+`, []string{r.Key}, r.g.watchDogTimeout.Milliseconds(), r.g.getLockName(gid)).Result()
 	if err != nil {
 		return 0, err
 	}
