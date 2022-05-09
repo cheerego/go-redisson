@@ -1,12 +1,14 @@
 package godisson
 
 import (
+	"context"
 	"sync"
 )
 
 type RenewEntry struct {
 	sync.Mutex
 	goroutineIds map[uint64]int64
+	cancelFunc   context.CancelFunc
 }
 
 func NewRenewEntry() *RenewEntry {

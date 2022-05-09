@@ -115,7 +115,7 @@ func (r *RLock) tryAcquire(waitTime int64, leaseTime int64) (int64, error) {
 		return 0, nil
 	}
 	if ttl == 0 {
-		go r.renewScheduler(goid)
+		r.renewScheduler(goid)
 	}
 	return ttl, err
 }
@@ -127,31 +127,39 @@ func (r *RLock) renewScheduler(goroutineId uint64) {
 		oldEntry.(*RenewEntry).addGoroutineId(goroutineId)
 	} else {
 		newEntry.addGoroutineId(goroutineId)
+		cancel, cancelFunc := context.WithCancel(context.TODO())
+
+		go func(context.Context) {
+			ticker := time.NewTicker(r.g.watchDogTimeout / 3)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ticker.C:
+					renew, err := r.renew(goroutineId)
+					if err != nil {
+						return
+					}
+					// key not exists, so return goroutine
+					if renew == 0 {
+						return
+					}
+				case <-cancel.Done():
+					return
+				}
+			}
+		}(cancel)
+
+		newEntry.cancelFunc = cancelFunc
 		r.g.RenewMap.Set(entryName, newEntry)
 	}
 
-	ticker := time.NewTicker(r.g.watchDogTimeout / 3)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			renew, err := r.renew(goroutineId)
-			if err != nil {
-				return
-			}
-			// key not exists, so return goroutine
-			if renew == 0 {
-				return
-			}
-		}
-	}
 }
 
 func (r *RLock) cancelExpirationRenewal(goid uint64) {
-	entryName := r.g.getEntryName(r.Key)
-	if entry, ok := r.g.RenewMap.Get(entryName); ok {
-		r.g.RenewMap.Remove(entryName)
-	}
+	//entryName := r.g.getEntryName(r.Key)
+	//if entry, ok := r.g.RenewMap.Get(entryName); ok {
+	//	r.g.RenewMap.Remove(entryName)
+	//}
 }
 
 func (r *RLock) tryAcquireInner(waitTime int64, leaseTime int64) (int64, error) {
