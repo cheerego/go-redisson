@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/cheerego/godisson"
+	"github.com/cheerego/go-redisson"
 	"github.com/go-redis/redis/v8"
 	"github.com/pkg/errors"
 	"log"

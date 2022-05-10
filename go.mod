@@ -1,4 +1,4 @@
-module github.com/cheerego/godisson
+module github.com/cheerego/go-redisson
 
 go 1.16
 
