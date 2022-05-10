@@ -87,30 +87,39 @@ func test1(g *godisson.Godisson) {
 	} else if err != nil {
 		log.Fatalln(err)
 	}
+	time.Sleep(10 * time.Second)
 }
 
 func test2(g *godisson.Godisson) {
 	m1 := g.NewMutex("godisson")
 	m2 := g.NewMutex("godisson")
 
-	err := m1.TryLock(-1, 20000)
-	if errors.Is(err, godisson.ErrLockNotObtained) {
-		log.Println("can't obtained lock")
-	} else if err != nil {
-		log.Fatalln(err)
-	}
-	time.Sleep(10 * time.Second)
-	m1.Unlock()
+	go func() {
+		err := m1.TryLock(-1, 20000)
+		if errors.Is(err, godisson.ErrLockNotObtained) {
+			log.Println("can't obtained lock")
+		} else if err != nil {
+			log.Fatalln(err)
+		}
+		time.Sleep(10 * time.Second)
+		m1.Unlock()
+	}()
 
 	// waitTime > 0, after 10 milliseconds will obtain the lock
-	err = m2.TryLock(12000, 20000)
-	if errors.Is(err, godisson.ErrLockNotObtained) {
-		log.Println("m2 must not obtained lock")
-	} else if err != nil {
-		log.Fatalln(err)
-	}
-	time.Sleep(10 * time.Second)
-	defer m2.Unlock()
+	go func() {
+		time.Sleep(1 * time.Second)
+		
+		err := m2.TryLock(15000, 20000)
+		if errors.Is(err, godisson.ErrLockNotObtained) {
+			log.Println("m2 must not obtained lock")
+		} else if err != nil {
+			log.Fatalln(err)
+		}
+		time.Sleep(10 * time.Second)
+
+		m2.Unlock()
+	}()
+
 }
 
 ```
