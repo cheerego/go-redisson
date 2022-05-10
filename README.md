@@ -24,7 +24,7 @@ go get github.com/cheerego/godisson
 ## Features
 
 * tryLock，if waitTime > 0, wait `waitTime` milliseconds to try to obtain lock by while true and redis pub sub.
-* watchdog, if leaseTime = 1, start a time.Ticker(defaultWatchDogTime / 3) to renew lock expiration time.
+* watchdog, if leaseTime = -1, start a time.Ticker(defaultWatchDogTime / 3) to renew lock expiration time.
 
 ## Options
 
