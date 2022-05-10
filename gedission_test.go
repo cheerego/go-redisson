@@ -2,6 +2,7 @@ package godisson
 
 import (
 	"context"
+	"fmt"
 	"github.com/go-redis/redis/v8"
 	"github.com/pkg/errors"
 	"net"
@@ -64,10 +65,32 @@ func TestNewGedissonWatchdog(t *testing.T) {
 	})
 
 	gedisson := NewGodisson(rdb)
+
+	go func() {
+		ticker := time.NewTicker(2 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				for _, i := range gedisson.RenewMap.Items() {
+					e := i.(*RenewEntry)
+					fmt.Printf("goids %v", e.goroutineIds)
+				}
+			}
+
+		}
+	}()
+
+	lock := gedisson.NewRLock("hkn")
+	t.Log(lock.TryLock(40000, -1))
+
 	lock1 := gedisson.NewRLock("hkn")
 	t.Log(lock1.TryLock(40000, -1))
 	time.Sleep(1 * time.Minute)
 	lock1.UnLock()
+
+	time.Sleep(30 * time.Second)
+	lock.UnLock()
 
 }
 

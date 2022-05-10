@@ -44,3 +44,7 @@ func (r *RenewEntry) removeGoroutineId(goroutineId uint64) {
 		r.goroutineIds[goroutineId] = count
 	}
 }
+
+func (r *RenewEntry) hasNoThreads() bool {
+	return len(r.goroutineIds) == 0
+}

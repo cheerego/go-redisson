@@ -115,12 +115,12 @@ func (r *RLock) tryAcquire(waitTime int64, leaseTime int64) (int64, error) {
 		return 0, nil
 	}
 	if ttl == 0 {
-		r.renewScheduler(goid)
+		r.renewExpirationScheduler(goid)
 	}
-	return ttl, err
+	return ttl, nil
 }
 
-func (r *RLock) renewScheduler(goroutineId uint64) {
+func (r *RLock) renewExpirationScheduler(goroutineId uint64) {
 	newEntry := NewRenewEntry()
 	entryName := r.g.getEntryName(r.Key)
 	if oldEntry, ok := r.g.RenewMap.Get(entryName); ok {
@@ -129,25 +129,7 @@ func (r *RLock) renewScheduler(goroutineId uint64) {
 		newEntry.addGoroutineId(goroutineId)
 		cancel, cancelFunc := context.WithCancel(context.TODO())
 
-		go func(context.Context) {
-			ticker := time.NewTicker(r.g.watchDogTimeout / 3)
-			defer ticker.Stop()
-			for {
-				select {
-				case <-ticker.C:
-					renew, err := r.renew(goroutineId)
-					if err != nil {
-						return
-					}
-					// key not exists, so return goroutine
-					if renew == 0 {
-						return
-					}
-				case <-cancel.Done():
-					return
-				}
-			}
-		}(cancel)
+		go r.renewExpirationSchedulerGoroutine(cancel, goroutineId)
 
 		newEntry.cancelFunc = cancelFunc
 		r.g.RenewMap.Set(entryName, newEntry)
@@ -155,11 +137,53 @@ func (r *RLock) renewScheduler(goroutineId uint64) {
 
 }
 
+func (r *RLock) renewExpirationSchedulerGoroutine(cancel context.Context, goid uint64) {
+	entryName := r.g.getEntryName(r.Key)
+
+	ticker := time.NewTicker(r.g.watchDogTimeout / 3)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			renew, err := r.renewExpiration(goid)
+			if err != nil {
+				r.g.RenewMap.Remove(entryName)
+				return
+			}
+			// key not exists, so return goroutine
+			if renew == 0 {
+				r.cancelExpirationRenewal(0)
+				return
+			}
+		case <-cancel.Done():
+			return
+		}
+	}
+}
+
 func (r *RLock) cancelExpirationRenewal(goid uint64) {
-	//entryName := r.g.getEntryName(r.Key)
-	//if entry, ok := r.g.RenewMap.Get(entryName); ok {
-	//	r.g.RenewMap.Remove(entryName)
-	//}
+	fmt.Println("cancel gitid", goid)
+	entryName := r.g.getEntryName(r.Key)
+	fmt.Println("cancel entryName", entryName)
+
+	entry, ok := r.g.RenewMap.Get(entryName)
+	if !ok {
+		fmt.Println("cancel not found", entryName)
+		return
+	}
+	task := entry.(*RenewEntry)
+
+	if goid != 0 {
+		task.removeGoroutineId(goid)
+	}
+	if goid == 0 || task.hasNoThreads() {
+		if task.cancelFunc != nil {
+			task.cancelFunc()
+			task.cancelFunc = nil
+			fmt.Println("call cancel function", entryName)
+		}
+		r.g.RenewMap.Remove(entryName)
+	}
 }
 
 func (r *RLock) tryAcquireInner(waitTime int64, leaseTime int64) (int64, error) {
@@ -235,7 +259,7 @@ func (r *RLock) getChannelName() string {
 	return fmt.Sprintf("{gedisson_lock__channel}:%s)", r.Key)
 }
 
-func (r *RLock) renew(gid uint64) (int64, error) {
+func (r *RLock) renewExpiration(gid uint64) (int64, error) {
 	result, err := r.g.c.Eval(context.TODO(), `
 if (redis.call('hexists', KEYS[1], ARGV[2]) == 1) then
     redis.call('pexpire', KEYS[1], ARGV[1]);
