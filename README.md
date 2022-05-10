@@ -5,7 +5,7 @@ a Redisson like distributed locking implementation using Redis.
 ## Installation
 
 ```shell
-go get github.com/cheerego/godisson
+go get github.com/cheerego/go-redisson
 ```
 
 
@@ -14,12 +14,12 @@ go get github.com/cheerego/godisson
 * Mutex
 1. Exclusive Lock (X Lock).
 2. use it like std package sync.Mutex.
-3. not a reentrant lock, can't lock twice in a same goroutine.
+3. not a reentrant lock that can't lock twice in a same goroutine.
 
 * RLock
 1. Exclusive Reentrant Lock.
 2. use it like java redisson.
-3. it is a reentrant lock that can lock many times in a same goroutine.
+3. a reentrant lock that can lock many times in a same goroutine.
 
 ## Features
 
