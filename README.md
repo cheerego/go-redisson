@@ -1,4 +1,4 @@
-## godisson
+## go-redisson 
 
 a Redisson like distributed locking implementation using Redis.
 
