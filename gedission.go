@@ -48,10 +48,14 @@ func (g *Godisson) NewRLock(key string) *RLock {
 	return newRLock(key, g)
 }
 
+func (g *Godisson) NewMutex(key string) *Mutex {
+	return newMutex(key, g)
+}
+
 func (g *Godisson) getEntryName(key string) string {
 	return fmt.Sprintf("%s:%s", g.uuid, key)
 }
 
-func (g *Godisson) getLockName(goroutineId uint64) string {
-	return fmt.Sprintf("%s:%d", g.uuid, goroutineId)
+func (g *Godisson) getChannelName(key string) string {
+	return fmt.Sprintf("{gedisson_lock__channel}:%s)", key)
 }

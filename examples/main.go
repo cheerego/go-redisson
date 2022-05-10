@@ -28,7 +28,7 @@ func main() {
 	} else if err != nil {
 		log.Fatalln(err)
 	}
-	defer lock.UnLock()
+	defer lock.Unlock()
 
 	// lock with retry、watchdog
 	// leaseTime value is -1, enable watchdog
@@ -41,5 +41,5 @@ func main() {
 		log.Fatalln(err)
 	}
 	time.Sleep(10 * time.Second)
-	defer lock.UnLock()
+	defer lock.Unlock()
 }

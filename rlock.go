@@ -19,13 +19,12 @@ type RLock struct {
 	g   *Godisson
 }
 
+var _ Locker = (*RLock)(nil)
+
 func newRLock(key string, g *Godisson) *RLock {
 	return &RLock{Key: key, g: g}
 }
 
-func (r *RLock) Success() {
-
-}
 func (r *RLock) Lock() error {
 	return r.TryLock(-1, -1)
 }
@@ -49,7 +48,7 @@ func (r *RLock) TryLock(waitTime int64, leaseTime int64) error {
 	}
 	current = currentTimeMillis()
 	// PubSub
-	sub := r.g.c.Subscribe(context.TODO(), r.getChannelName())
+	sub := r.g.c.Subscribe(context.TODO(), r.g.getChannelName(r.Key))
 	defer sub.Close()
 	timeoutCtx, timeoutCancel := context.WithTimeout(context.TODO(), time.Duration(wait)*time.Millisecond)
 	defer timeoutCancel()
@@ -191,7 +190,7 @@ func (r *RLock) tryAcquireInner(waitTime int64, leaseTime int64) (int64, error) 
 	if err != nil {
 		return 0, err
 	}
-	lockName := r.g.getLockName(gid)
+	lockName := r.getHashKey(gid)
 	if err != nil {
 		return 0, err
 	}
@@ -215,12 +214,12 @@ return redis.call('pttl', KEYS[1]);
 	if b, ok := result.(int64); ok {
 		return b, nil
 	} else {
-		return 0, errors.Errorf("try lock result converter to int64 error, value is %v", result)
+		return 0, errors.Errorf("tryAcquireInner result converter to int64 error, value is %v", result)
 	}
 
 }
 
-func (r *RLock) UnLock() (int64, error) {
+func (r *RLock) Unlock() (int64, error) {
 	goid, err := gid()
 	if err != nil {
 		return 0, err
@@ -244,7 +243,7 @@ else
     return 1;
 end;
 return nil;
-`, []string{r.Key, r.getChannelName()}, UNLOCK_MESSAGE, DefaultWatchDogTimeout, r.g.getLockName(goid)).Result()
+`, []string{r.Key, r.g.getChannelName(r.Key)}, UNLOCK_MESSAGE, DefaultWatchDogTimeout, r.getHashKey(goid)).Result()
 	if err != nil {
 		return 0, err
 	}
@@ -255,10 +254,6 @@ return nil;
 	}
 }
 
-func (r *RLock) getChannelName() string {
-	return fmt.Sprintf("{gedisson_lock__channel}:%s)", r.Key)
-}
-
 func (r *RLock) renewExpiration(gid uint64) (int64, error) {
 	result, err := r.g.c.Eval(context.TODO(), `
 if (redis.call('hexists', KEYS[1], ARGV[2]) == 1) then
@@ -266,7 +261,7 @@ if (redis.call('hexists', KEYS[1], ARGV[2]) == 1) then
     return 1;
 end ;
 return 0
-`, []string{r.Key}, r.g.watchDogTimeout.Milliseconds(), r.g.getLockName(gid)).Result()
+`, []string{r.Key}, r.g.watchDogTimeout.Milliseconds(), r.getHashKey(gid)).Result()
 	if err != nil {
 		return 0, err
 	}
@@ -275,4 +270,8 @@ return 0
 	} else {
 		return 0, errors.Errorf("try lock result converter to int64 error, value is %v", result)
 	}
+}
+
+func (r *RLock) getHashKey(goroutineId uint64) string {
+	return fmt.Sprintf("%s:%d", r.g.uuid, goroutineId)
 }

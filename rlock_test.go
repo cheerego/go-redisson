@@ -21,7 +21,7 @@ func TestNewGedisson(t *testing.T) {
 	lock := gedisson.NewRLock("hkn")
 	t.Log(lock.TryLock(20000, 40000))
 	time.Sleep(10 * time.Second)
-	lock.UnLock()
+	lock.Unlock()
 
 	//time.Sleep(100 * time.Second)
 }
@@ -38,7 +38,7 @@ func TestNewGedisson1(t *testing.T) {
 
 	t.Log(lock1.TryLock(20000, 40000))
 	time.Sleep(10 * time.Second)
-	lock1.UnLock()
+	lock1.Unlock()
 
 }
 
@@ -54,7 +54,7 @@ func TestNewGedisson2(t *testing.T) {
 
 	t.Log(lock1.TryLock(20000, 40000))
 	time.Sleep(10 * time.Second)
-	lock1.UnLock()
+	lock1.Unlock()
 
 }
 func TestNewGedissonWatchdog(t *testing.T) {
@@ -87,10 +87,10 @@ func TestNewGedissonWatchdog(t *testing.T) {
 	lock1 := gedisson.NewRLock("hkn")
 	t.Log(lock1.TryLock(40000, -1))
 	time.Sleep(1 * time.Minute)
-	lock1.UnLock()
+	lock1.Unlock()
 
 	time.Sleep(30 * time.Second)
-	lock.UnLock()
+	lock.Unlock()
 
 }
 
