@@ -2,7 +2,6 @@ package godisson
 
 import (
 	"context"
-	"fmt"
 	"github.com/pkg/errors"
 	"net"
 	"time"
@@ -41,7 +40,6 @@ func (m *Mutex) TryLock(waitTime int64, leaseTime int64) error {
 	timeoutCtx, timeoutCancel := context.WithTimeout(context.TODO(), time.Duration(wait)*time.Millisecond)
 	defer timeoutCancel()
 	_, err = sub.ReceiveMessage(timeoutCtx)
-	fmt.Println("receive", 1)
 	if err != nil {
 		return ErrLockNotObtained
 	}
@@ -72,7 +70,6 @@ func (m *Mutex) TryLock(waitTime int64, leaseTime int64) error {
 					continue
 				}
 			}
-			fmt.Println("receive", 2)
 		} else {
 			tCtx, _ := context.WithTimeout(context.TODO(), time.Duration(wait)*time.Millisecond)
 			_, err := sub.ReceiveMessage(tCtx)
@@ -82,7 +79,6 @@ func (m *Mutex) TryLock(waitTime int64, leaseTime int64) error {
 					continue
 				}
 			}
-			fmt.Println("receive", 3)
 		}
 		wait -= currentTimeMillis() - currentTime
 		if wait <= 0 {
