@@ -1,36 +1,34 @@
 ## go-redisson 
 
-a Redisson like distributed locking implementation using Redis.
+一个借鉴 redisson 用 go 实现的 Redis 分布式锁的库。
 
-**Explanation**
-
-[中文](README-zh.md)
-
-## Installation
+## 安装
 
 ```shell
 go get github.com/cheerego/go-redisson
 ```
 
 
-## Support Lock Category
+## 支持锁类型
 
-* Mutex [Example](#Mutex)
-  * Exclusive Lock (X Lock). 
-  * use it like std package sync.Mutex. 
-  * not a reentrant lock that can't lock twice in a same goroutine.
+* Mutex [示例](#Mutex) 特性：
+  * 互斥锁 (X Lock)。 
+  * 和 go 标准库 sync.Mutex 用起来差不多。 
+  * 不支持可重入。 
+  * 支持 WatchDog。
 
-* RLock [Example](#Rlock)
-  * Exclusive Reentrant Lock. 
-  * use it like java redisson. 
-  * a reentrant lock that can lock many times in a same goroutine.
+* RLock[示例](#RLock) 特性：
+  * 互斥可重入锁。 
+  * 和 redisson 使用起来差不多。 
+  * 支持同一个协程重复加锁。
+  * 支持 WatchDog。
 
-## Features
+## 特性
 
 * tryLock，if waitTime > 0, wait `waitTime` milliseconds to try to obtain lock by while true and redis pub sub.
 * watchdog, if leaseTime = -1, start a time.Ticker(defaultWatchDogTime / 3) to renew lock expiration time.
 
-## Options
+## 配置 
 
 ### WatchDogTimeout
 
@@ -39,8 +37,7 @@ g := godisson.NewGodisson(rdb, godisson.WithWatchDogTimeout(30*time.Second))
 ```
 
 
-## Examples
-
+## 示例
 
 ### Mutex 
 
