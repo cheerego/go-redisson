@@ -161,13 +161,10 @@ func (r *RLock) renewExpirationSchedulerGoroutine(cancel context.Context, goid u
 }
 
 func (r *RLock) cancelExpirationRenewal(goid uint64) {
-	fmt.Println("cancel gitid", goid)
 	entryName := r.g.getEntryName(r.Key)
-	fmt.Println("cancel entryName", entryName)
 
 	entry, ok := r.g.RenewMap.Get(entryName)
 	if !ok {
-		fmt.Println("cancel not found", entryName)
 		return
 	}
 	task := entry.(*RenewEntry)
@@ -179,7 +176,6 @@ func (r *RLock) cancelExpirationRenewal(goid uint64) {
 		if task.cancelFunc != nil {
 			task.cancelFunc()
 			task.cancelFunc = nil
-			fmt.Println("call cancel function", entryName)
 		}
 		r.g.RenewMap.Remove(entryName)
 	}

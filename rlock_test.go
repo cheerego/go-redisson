@@ -119,3 +119,21 @@ func TestPub(t *testing.T) {
 	rdb.Publish(context.Background(), "123-channel", "123")
 
 }
+
+func TestReLock(t *testing.T) {
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     "localhost:6379",
+		Password: "", // no password set
+		DB:       0,  // use default DB
+	})
+
+	g := NewGodisson(rdb)
+
+	lock1 := g.NewRLock("hkn")
+	t.Log(lock1.TryLock(-1, 30000))
+	time.Sleep(10 * time.Second)
+
+	lock2 := g.NewRLock("hkn")
+	t.Log(lock2.TryLock(-1, -1))
+
+}
